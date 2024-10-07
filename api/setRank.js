@@ -1,3 +1,28 @@
+const express = require('express');
+const bodyParser = require('body-parser');
+const noblox = require('noblox.js');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const GROUP_ID = process.env.GROUP_ID; // Ensure this is set in your environment variables
+
+app.use(bodyParser.json());
+
+// Middleware to log every incoming request
+app.use((req, res, next) => {
+  console.log(`Received request: ${req.method} ${req.path} with body:`, JSON.stringify(req.body, null, 2));
+  next();
+});
+
+app.post("/api/setRank", async (req, res) => {
+  const { userid, rank, key, groupId } = req.body;
+
+  // Debugging input values
+  console.log(`Input values: 
+    userId = ${userid}, 
+    rank = ${rank}, 
+    key = ${key}, 
+    groupId = ${groupId}`);
 
   try {
     // Check if the provided key matches the environment variable
