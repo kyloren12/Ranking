@@ -1,28 +1,3 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const noblox = require('noblox.js');
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-const GROUP_ID = process.env.GROUP_ID; // Ensure this is set in your environment variables
-
-app.use(bodyParser.json());
-
-// Middleware to log every incoming request
-app.use((req, res, next) => {
-  console.log(`Received request: ${req.method} ${req.path} with body:`, JSON.stringify(req.body, null, 2));
-  next();
-});
-
-app.post("/api/setRank", async (req, res) => {
-  const { userid, rank, key, groupId } = req.body;
-
-  // Debugging input values
-  console.log(`Input values: 
-    userId = ${userid}, 
-    rank = ${rank}, 
-    key = ${key}, 
-    groupId = ${groupId}`);
 
   try {
     // Check if the provided key matches the environment variable
@@ -41,17 +16,22 @@ app.post("/api/setRank", async (req, res) => {
     console.log('Logged in as user:', JSON.stringify(user, null, 2));
 
     // Attempt to promote the user
-    const success = await noblox.setRank(groupId, userid, rank);
-    if (success) {
-      console.log(`User ID ${userid} was promoted to rank ${rank}.`);
-      return res.status(200).json({ message: `User ID ${userid} was promoted to rank ${rank}.` });
-    } else {
-      console.log(`Failed to promote User ID ${userid}.`);
-      return res.status(500).json({ message: 'Failed to promote user.' });
+    console.log(`Attempting to promote user ${userid} to rank ${rank} in group ${groupId || GROUP_ID}`);
+    const rankUpdateResponse = await noblox.setRank(groupId || GROUP_ID, userid, rank);
+    console.log(`Successfully promoted user ${userid} to rank ${rank} in group ${groupId || GROUP_ID}. Response:`, JSON.stringify(rankUpdateResponse, null, 2));
+
+    res.status(200).json({ message: 'Rank updated successfully' });
+  } catch (err) {
+    // Detailed error logging
+    console.error("Error updating rank:", err);
+    // Logging specific error information
+    if (err.message) {
+      console.error("Error message:", err.message);
     }
-  } catch (error) {
-    console.error('Error in /api/setRank:', error);
-    return res.status(500).json({ message: 'Internal server error', error: error.message });
+    if (err.response) {
+      console.error("Error response:", err.response);
+    }
+    res.status(500).json({ message: 'Error updating rank', error: err.message });
   }
 });
 
