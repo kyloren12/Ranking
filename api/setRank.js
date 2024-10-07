@@ -34,9 +34,16 @@ app.post("/api/setRank", async (req, res) => {
     // Attempt to log in using the ROBLOX_COOKIE
     console.log('Logging in with ROBLOX_COOKIE...');
     const cookieResponse = await noblox.setCookie(process.env.ROBLOX_COOKIE);
+    
+    if (!cookieResponse) {
+      console.error('Failed to set cookie.');
+      return res.status(500).json({ message: 'Error setting cookie. Cookie response was invalid.' });
+    }
+
     console.log('Cookie set response:', cookieResponse);
 
     // Debugging logged-in user
+    console.log('Checking logged in user...');
     const user = await noblox.getCurrentUser();
     console.log('Logged in as user:', JSON.stringify(user, null, 2));
 
