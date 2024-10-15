@@ -42,6 +42,14 @@ app.post("/api/setRank", async (req, res) => {
 
     console.log('Cookie set response:', cookieResponse);
 
+
+     // Check if the cookie is still valid by retrieving the current logged-in user
+    const user = await noblox.getCurrentUser();
+    if (!user) {
+      console.error('Cookie may have expired. Please log in again.');
+      return res.status(403).json({ message: 'Session expired. Please refresh the cookie.' });
+    }
+
     // Debugging logged-in user
     console.log('Checking logged in user...');
     const user = await noblox.getCurrentUser();
