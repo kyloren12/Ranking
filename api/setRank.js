@@ -32,15 +32,39 @@ app.post("/api/setRank", async (req, res) => {
     }
 
     // Attempt to log in using the ROBLOX_COOKIE
-    console.log('Logging in with ROBLOX_COOKIE...');
-    const cookieResponse = await noblox.setCookie(process.env.ROBLOX_COOKIE);
-    
-    if (!cookieResponse) {
-      console.error('Failed to set cookie.');
-      return res.status(500).json({ message: 'Error setting cookie. Cookie response was invalid.' });
+    console.log('Attempting to log in with ROBLOX_COOKIE...');
+    let loggedIn = false;
+
+    if (process.env.ROBLOX_COOKIE) {
+      const cookieResponse = await noblox.setCookie(process.env.ROBLOX_COOKIE);
+      if (cookieResponse) {
+        console.log('Successfully logged in with ROBLOX_COOKIE');
+        loggedIn = true;
+      } else {
+        console.error('Failed to set cookie. Trying username and password...');
+      }
+    } else {
+      console.error('No ROBLOX_COOKIE provided. Trying username and password...');
     }
 
-    console.log('Cookie set response:', cookieResponse);
+    // If login via cookie failed, try using username and password
+    if (!loggedIn) {
+      const username = process.env.ROBUX_USERNAME; // Get username from environment variables
+      const password = process.env.ROBUX_PASSWORD; // Get password from environment variables
+      
+      if (!username || !password) {
+        console.error('Username or password not provided in environment variables.');
+        return res.status(500).json({ message: 'Username or password not set in environment variables.' });
+      }
+
+      console.log('Logging in with username and password...');
+      const loginResponse = await noblox.login(username, password);
+      if (!loginResponse) {
+        console.error('Failed to log in with username and password.');
+        return res.status(500).json({ message: 'Login failed with username and password.' });
+      }
+      console.log('Successfully logged in with username and password.');
+    }
 
     // Debugging logged-in user
     console.log('Checking logged in user...');
