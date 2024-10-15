@@ -1,6 +1,7 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const noblox = require('noblox.js');
+const { getRobloxCookie } = require('./getRobloxCookie'); // Import the new script for refreshing cookie
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -31,29 +32,23 @@ app.post("/api/setRank", async (req, res) => {
       return res.status(403).json({ message: 'Unauthorized' });
     }
 
+    let robloxCookie = process.env.ROBLOX_COOKIE;
+
     // Attempt to log in using the ROBLOX_COOKIE
-    console.log('Logging in with ROBLOX_COOKIE...');
-    const cookieResponse = await noblox.setCookie(process.env.ROBLOX_COOKIE);
-    
-    if (!cookieResponse) {
-      console.error('Failed to set cookie.');
-      return res.status(500).json({ message: 'Error setting cookie. Cookie response was invalid.' });
+    try {
+      console.log('Logging in with ROBLOX_COOKIE...');
+      await noblox.setCookie(robloxCookie);
+      const user = await noblox.getCurrentUser();
+      console.log('Logged in as user:', JSON.stringify(user, null, 2));
+    } catch (err) {
+      console.error('ROBLOX_COOKIE might have expired. Refreshing...');
+      
+      // If the cookie is invalid, refresh it using Puppeteer
+      robloxCookie = await getRobloxCookie();
+      await noblox.setCookie(robloxCookie);
+
+      console.log('Cookie refreshed and set!');
     }
-
-    console.log('Cookie set response:', cookieResponse);
-
-
-     // Check if the cookie is still valid by retrieving the current logged-in user
-    const user = await noblox.getCurrentUser();
-    if (!user) {
-      console.error('Cookie may have expired. Please log in again.');
-      return res.status(403).json({ message: 'Session expired. Please refresh the cookie.' });
-    }
-
-    // Debugging logged-in user
-    console.log('Checking logged in user...');
-    const user = await noblox.getCurrentUser();
-    console.log('Logged in as user:', JSON.stringify(user, null, 2));
 
     // Attempt to promote the user
     console.log(`Attempting to promote user ${userid} to rank ${rank} in group ${groupId || GROUP_ID}`);
@@ -64,7 +59,6 @@ app.post("/api/setRank", async (req, res) => {
   } catch (err) {
     // Detailed error logging
     console.error("Error updating rank:", err);
-    // Logging specific error information
     if (err.message) {
       console.error("Error message:", err.message);
     }
