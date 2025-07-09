@@ -14,12 +14,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// Send webhook to Discord
+// Send webhook to Discord (silent if missing or failed)
 async function sendDiscordWebhook(title, description, color = 0x3498db) {
-  try {
-    const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
-    if (!webhookUrl) return;
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  if (!webhookUrl) return;
 
+  try {
     await axios.post(webhookUrl, {
       embeds: [
         {
@@ -30,8 +30,8 @@ async function sendDiscordWebhook(title, description, color = 0x3498db) {
         }
       ]
     });
-  } catch (err) {
-    console.error("Failed to send Discord webhook:", err.message);
+  } catch (_) {
+    // silently ignore all errors
   }
 }
 
