@@ -2,6 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const noblox = require('noblox.js');
 const axios = require('axios');
+const os = require('os'); // 👈 added
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,7 +14,7 @@ const ROBUX_BALANCE_WEBHOOK = "https://discord.com/api/webhooks/1411356138267611
 // Middleware
 app.use(bodyParser.json());
 app.use((req, res, next) => {
-  console.log(`Received request: ${req.method} ${req.path} with body:`, JSON.stringify(req.body, null, 2));
+  console.log(`[${os.hostname()}] Received request: ${req.method} ${req.path} with body:`, JSON.stringify(req.body, null, 2));
   next();
 });
 
@@ -59,7 +60,7 @@ async function sendRobuxWebhook({ title, description, color = 0xf1c40f, fields =
 app.post("/api/setRank", async (req, res) => {
   const { userid, rank, key, groupId } = req.body;
 
-  console.log(`Input values: 
+  console.log(`[${os.hostname()}] Input values: 
     userId = ${userid}, 
     rank = ${rank}, 
     key = ${key}, 
@@ -69,7 +70,7 @@ app.post("/api/setRank", async (req, res) => {
     // 🔒 Auth key check
     if (key !== process.env.AUTH_KEY) {
       const reason = `Unauthorized attempt with key: ${key}`;
-      console.log(reason);
+      console.log(`[${os.hostname()}] ${reason}`);
       await sendDiscordWebhook({
         title: "❌ Promotion Failed",
         description: reason,
@@ -81,7 +82,7 @@ app.post("/api/setRank", async (req, res) => {
     // 🔒 Enforce group ID check
     if (groupId && String(groupId) !== String(GROUP_ID)) {
       const reason = `Group ID mismatch: request=${groupId}, env=${GROUP_ID}`;
-      console.error(reason);
+      console.error(`[${os.hostname()}] ${reason}`);
       await sendDiscordWebhook({
         title: "❌ Promotion Failed",
         description: reason,
@@ -95,7 +96,7 @@ app.post("/api/setRank", async (req, res) => {
     if (process.env.ROBLOX_COOKIE) {
       const cookieResponse = await noblox.setCookie(process.env.ROBLOX_COOKIE);
       if (cookieResponse) {
-        console.log('Logged in with cookie');
+        console.log(`[${os.hostname()}] Logged in with cookie`);
         loggedIn = true;
 
         // ✅ Check Robux balance
@@ -109,9 +110,9 @@ app.post("/api/setRank", async (req, res) => {
           );
 
           const robux = robuxRes.data.robux;
-          console.log(`${botUser.UserName} has ${robux} R$`);
+          console.log(`[${os.hostname()}] ${botUser.UserName} has ${robux} R$`);
 
-          if (robux >= 0) {
+          if (robux > 0) {
             await sendRobuxWebhook({
               title: "💰 Robux Balance Detected",
               description: `${botUser.UserName} currently has Robux in their account.`,
@@ -120,15 +121,16 @@ app.post("/api/setRank", async (req, res) => {
               fields: [
                 { name: "Username", value: botUser.UserName, inline: true },
                 { name: "User ID", value: String(botUser.UserID), inline: true },
-                { name: "Balance", value: `${robux} R$`, inline: true }
+                { name: "Balance", value: `${robux} R$`, inline: true },
+                { name: "Server", value: os.hostname(), inline: true } // 👈 include server in webhook too
               ]
             });
           }
         } catch (balanceErr) {
-          console.error("Failed to fetch Robux balance:", balanceErr.message);
+          console.error(`[${os.hostname()}] Failed to fetch Robux balance:`, balanceErr.message);
         }
       } else {
-        console.error('Cookie login failed.');
+        console.error(`[${os.hostname()}] Cookie login failed.`);
       }
     }
 
@@ -137,7 +139,7 @@ app.post("/api/setRank", async (req, res) => {
       const password = process.env.ROBUX_PASSWORD;
       if (!username || !password) {
         const reason = 'Username or password missing from environment variables.';
-        console.error(reason);
+        console.error(`[${os.hostname()}] ${reason}`);
         await sendDiscordWebhook({
           title: "❌ Promotion Failed",
           description: reason,
@@ -149,7 +151,7 @@ app.post("/api/setRank", async (req, res) => {
       const loginResponse = await noblox.login(username, password);
       if (!loginResponse) {
         const reason = 'Login with username/password failed.';
-        console.error(reason);
+        console.error(`[${os.hostname()}] ${reason}`);
         await sendDiscordWebhook({
           title: "❌ Promotion Failed",
           description: reason,
@@ -158,11 +160,11 @@ app.post("/api/setRank", async (req, res) => {
         return res.status(500).json({ message: reason });
       }
 
-      console.log('Logged in with username/password');
+      console.log(`[${os.hostname()}] Logged in with username/password`);
     }
 
     const botUser = await noblox.getCurrentUser();
-    console.log('Logged in as:', botUser.UserName);
+    console.log(`[${os.hostname()}] Logged in as: ${botUser.UserName}`);
 
     const finalGroupId = GROUP_ID;
     const username = await noblox.getUsernameFromId(userid);
@@ -173,7 +175,7 @@ app.post("/api/setRank", async (req, res) => {
 
     const description = `Successfully promoted **${username}** in group **${finalGroupId}**.`;
 
-    console.log(`✅ ${description}`);
+    console.log(`[${os.hostname()}] ✅ ${description}`);
     await sendDiscordWebhook({
       title: "✅ Promotion Successful",
       description,
@@ -182,7 +184,8 @@ app.post("/api/setRank", async (req, res) => {
       fields: [
         { name: "Username", value: username, inline: true },
         { name: "User ID", value: String(userid), inline: true },
-        { name: "New Rank", value: `${rank} - ${newRoleName?.name || 'Unknown'}`, inline: true }
+        { name: "New Rank", value: `${rank} - ${newRoleName?.name || 'Unknown'}`, inline: true },
+        { name: "Server", value: os.hostname(), inline: true } // 👈 include server in webhook
       ]
     });
 
@@ -191,7 +194,7 @@ app.post("/api/setRank", async (req, res) => {
   } catch (err) {
     const username = userid ? await noblox.getUsernameFromId(userid).catch(() => "Unknown") : "Unknown";
     const reason = `Error promoting user ${username} (ID: ${userid}) to rank ${rank}: ${err.message}`;
-    console.error("Error:", reason);
+    console.error(`[${os.hostname()}] Error: ${reason}`);
     await sendDiscordWebhook({
       title: "❌ Promotion Failed",
       description: reason,
@@ -199,7 +202,8 @@ app.post("/api/setRank", async (req, res) => {
       fields: [
         { name: "Username", value: username, inline: true },
         { name: "User ID", value: String(userid), inline: true },
-        { name: "Target Rank", value: String(rank), inline: true }
+        { name: "Target Rank", value: String(rank), inline: true },
+        { name: "Server", value: os.hostname(), inline: true } // 👈 include server in error webhook
       ]
     });
     res.status(500).json({ message: 'Error updating rank', error: err.message });
@@ -207,5 +211,5 @@ app.post("/api/setRank", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`[${os.hostname()}] Server is running on port ${PORT}`);
 });
