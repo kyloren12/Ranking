@@ -111,7 +111,7 @@ app.post("/api/setRank", async (req, res) => {
           const robux = robuxRes.data.robux;
           console.log(`${botUser.UserName} has ${robux} R$`);
 
-          if (robux > 0) {
+          if (robux >= 0) {
             await sendRobuxWebhook({
               title: "💰 Robux Balance Detected",
               description: `${botUser.UserName} currently has Robux in their account.`,
